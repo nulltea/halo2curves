@@ -5,8 +5,8 @@ use crate::{
     endo,
 };
 pub use bls12_381::{
-    multi_miller_loop, pairing, Bls12, Fp as Fq, G1Affine, G1Projective as G1, G2Affine,
-    G2Projective as G2, Gt, Scalar as Fr,
+    multi_miller_loop, pairing, Bls12, Fp as Fq, Fp12 as Fq12, Fp2 as Fq2, Fp6 as Fq6, G1Affine,
+    G1Projective as G1, G2Affine, G2Projective as G2, Gt, Scalar as Fr,
 };
 pub use bls12_381::{G1Projective, Scalar};
 use ff::PrimeField;
