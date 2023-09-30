@@ -4,7 +4,11 @@ use crate::{
     arithmetic::{CurveEndo, EndoParameters},
     endo,
 };
-pub use bls12_381::{Fp, G1Projective, Scalar};
+pub use bls12_381::{
+    multi_miller_loop, pairing, Bls12, Fp as Fq, G1Affine, G1Projective as G1, G2Affine,
+    G2Projective as G2, Gt, Scalar as Fr,
+};
+pub use bls12_381::{G1Projective, Scalar};
 use ff::PrimeField;
 use ff::WithSmallOrderMulGroup;
 use std::convert::TryInto;
