@@ -1,3 +1,7 @@
+#![feature(int_log)]
+#![feature(bigint_helper_methods)]
+#![feature(const_bigint_helper_methods)]
+
 mod arithmetic;
 mod bernsteinyang;
 pub mod fft;
@@ -10,6 +14,7 @@ pub mod serde;
 
 pub mod bn256;
 pub mod grumpkin;
+pub mod bls12_381;
 pub mod pasta;
 pub mod secp256k1;
 pub mod secp256r1;
