@@ -2,11 +2,17 @@
 
 #![allow(clippy::needless_borrow)]
 use core::fmt;
-use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::ops::{Add, Mul, Neg, Sub};
 use std::cmp::Ordering;
 use ff::{Field, WithSmallOrderMulGroup};
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
+
+use crate::{
+    impl_add_binop_specify_output, impl_binops_additive,
+    impl_binops_additive_specify_output, impl_binops_multiplicative,
+    impl_binops_multiplicative_mixed, impl_sub_binop_specify_output,
+};
 
 use super::fp::Fp;
 
@@ -560,7 +566,7 @@ impl ff::Field for Fp2 {
                 1352426537312017168,
             ]),
         };
-        let mut tv1 = C6.clone(); // 1. tv1 = c6
+        let mut tv1 = C6; // 1. tv1 = c6
         let tv2 = div.pow_vartime(C4); // 2. tv2 = v^c4
         let tv3 = tv2.square(); // 3. tv3 = tv2^2
         let tv3 = tv3 * div; // 4. tv3 = tv3 * v

@@ -2,10 +2,15 @@ use super::fp::*;
 use super::fp2::*;
 
 use core::fmt;
-use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::ops::{Add, Mul, Neg, Sub};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 use rand_core::RngCore;
+
+use crate::{
+    impl_add_binop_specify_output, impl_binops_additive, impl_binops_additive_specify_output,
+    impl_binops_multiplicative, impl_binops_multiplicative_mixed, impl_sub_binop_specify_output,
+};
 
 /// This represents an element $c_0 + c_1 v + c_2 v^2$ of $\mathbb{F}_{p^6} = \mathbb{F}_{p^2} / v^3 - u - 1$.
 pub struct Fp6 {

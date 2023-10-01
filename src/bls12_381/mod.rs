@@ -17,8 +17,8 @@
 // involve various binary operators, and so this lint is triggered unnecessarily.
 #![allow(clippy::suspicious_arithmetic_impl)]
 
-#[macro_use]
-mod util;
+// #[macro_use]
+// mod util;
 
 mod scalar;
 

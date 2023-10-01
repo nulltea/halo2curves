@@ -5,24 +5,26 @@ use alloc::boxed::Box;
 use core::borrow::Borrow;
 use core::fmt;
 use core::iter::Sum;
-use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::ops::{Add, Mul, Neg, Sub};
 use group::{
     ff::Field,
     prime::{PrimeCurve, PrimeCurveAffine, PrimeGroup},
     Curve, Group, GroupEncoding, UncompressedEncoding,
 };
+use pasta_curves::arithmetic::{Coordinates, CurveAffine, CurveExt};
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
-#[cfg(feature = "alloc")]
-use group::WnafGroup;
-
-use pasta_curves::arithmetic::{Coordinates, CurveAffine, CurveExt};
-
-use crate::CurveAffineExt;
-
 use super::fp::Fp;
 use super::Scalar;
+use crate::CurveAffineExt;
+use crate::{
+    impl_add_binop_specify_output, impl_binops_additive, impl_binops_additive_specify_output,
+    impl_binops_multiplicative, impl_binops_multiplicative_mixed, impl_sub_binop_specify_output,
+};
+
+#[cfg(feature = "alloc")]
+use group::WnafGroup;
 
 /// This is an element of $\mathbb{G}_1$ represented in the affine coordinate space.
 /// It is ideal to keep elements in this representation to reduce memory usage and
@@ -49,7 +51,7 @@ impl zeroize::DefaultIsZeroes for G1Affine {}
 
 impl fmt::Display for G1Affine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -371,7 +373,8 @@ impl G1Affine {
         // We already know the point is on the curve because this is established
         // by the y-coordinate recovery procedure in from_compressed_unchecked().
 
-        Self::from_compressed_unchecked_be(bytes).and_then(|p| CtOption::new(p, p.is_torsion_free()))
+        Self::from_compressed_unchecked_be(bytes)
+            .and_then(|p| CtOption::new(p, p.is_torsion_free()))
     }
 
     /// Attempts to deserialize an uncompressed element, not checking if the
@@ -549,7 +552,7 @@ impl zeroize::DefaultIsZeroes for G1Projective {}
 
 impl fmt::Display for G1Projective {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 

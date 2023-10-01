@@ -7,13 +7,16 @@ use super::{G1Affine, G1Projective, G2Affine, G2Projective, Scalar, BLS_X, BLS_X
 use core::borrow::Borrow;
 use core::fmt;
 use core::iter::Sum;
-use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::ops::{Add, AddAssign, Mul, Neg, Sub};
 use group::Group;
 use pairing::{Engine, PairingCurveAffine};
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
-// use pairing::MultiMillerLoop;
+use crate::{
+    impl_add_binop_specify_output, impl_binops_additive, impl_binops_additive_specify_output,
+    impl_binops_multiplicative, impl_binops_multiplicative_mixed, impl_sub_binop_specify_output,
+};
 
 /// Represents results of a Miller loop, one of the most expensive portions
 /// of the pairing function. `MillerLoopResult`s cannot be compared with each
@@ -218,7 +221,7 @@ impl zeroize::DefaultIsZeroes for Gt {}
 
 impl fmt::Display for Gt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 

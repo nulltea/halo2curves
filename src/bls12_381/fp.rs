@@ -4,12 +4,17 @@
 #![allow(clippy::needless_borrow)]
 use core::cmp::Ordering;
 use core::fmt;
-use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::ops::{Add, Mul, Neg, Sub};
 use ff::{Field, PrimeField, WithSmallOrderMulGroup};
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 use crate::arithmetic::{adc, mac, sbb};
+use crate::{
+    impl_add_binop_specify_output, impl_binops_additive,
+    impl_binops_additive_specify_output, impl_binops_multiplicative,
+    impl_binops_multiplicative_mixed, impl_sub_binop_specify_output,
+};
 /// Represents an element of the base field $\mathbb{F}_p$ of the BLS12-381 elliptic
 /// curve construction.
 /// The internal representation of this type is six 64-bit unsigned
@@ -23,7 +28,7 @@ impl fmt::Debug for Fp {
         let tmp = self.to_bytes();
         write!(f, "0x")?;
         for &b in tmp.iter() {
-            write!(f, "{:02x}", b)?;
+            write!(f, "{b:02x}")?;
         }
         Ok(())
     }
@@ -420,7 +425,7 @@ impl Fp {
 
         // Try to subtract the modulus
         let (_, borrow) = sbb(tmp.0[0], MODULUS[0], 0);
-        let (_, borrow) = sbb(tmp.0[1], MODULUS[1], borrow as u64);
+        let (_, borrow) = sbb(tmp.0[1], MODULUS[1], borrow);
         let (_, borrow) = sbb(tmp.0[2], MODULUS[2], borrow);
         let (_, borrow) = sbb(tmp.0[3], MODULUS[3], borrow);
         let (_, borrow) = sbb(tmp.0[4], MODULUS[4], borrow);

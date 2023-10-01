@@ -3,24 +3,28 @@
 use core::borrow::Borrow;
 use core::fmt;
 use core::iter::Sum;
-use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::ops::{Add, Mul, Neg, Sub};
+use ff::Field;
 use group::{
     prime::{PrimeCurve, PrimeCurveAffine, PrimeGroup},
     Curve, Group, GroupEncoding, UncompressedEncoding,
 };
-use pasta_curves::arithmetic::{CurveAffine, Coordinates, CurveExt};
+use pasta_curves::arithmetic::{Coordinates, CurveAffine, CurveExt};
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
-use ff::Field;
-
-#[cfg(feature = "alloc")]
-use group::WnafGroup;
 
 use crate::CurveAffineExt;
+use crate::{
+    impl_add_binop_specify_output, impl_binops_additive, impl_binops_additive_specify_output,
+    impl_binops_multiplicative, impl_binops_multiplicative_mixed, impl_sub_binop_specify_output,
+};
 
 use super::fp::Fp;
 use super::fp2::Fp2;
 use super::Scalar;
+
+#[cfg(feature = "alloc")]
+use group::WnafGroup;
 
 /// This is an element of $\mathbb{G}_2$ represented in the affine coordinate space.
 /// It is ideal to keep elements in this representation to reduce memory usage and
@@ -47,7 +51,7 @@ impl zeroize::DefaultIsZeroes for G2Affine {}
 
 impl fmt::Display for G2Affine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -241,7 +245,7 @@ impl G2Affine {
                 };
 
                 let p = p.to_curve();
-                return p.clear_cofactor().to_affine()
+                return p.clear_cofactor().to_affine();
             }
         }
     }
@@ -432,7 +436,8 @@ impl G2Affine {
         // We already know the point is on the curve because this is established
         // by the y-coordinate recovery procedure in from_compressed_unchecked().
 
-        Self::from_compressed_unchecked_be(bytes).and_then(|p| CtOption::new(p, p.is_torsion_free()))
+        Self::from_compressed_unchecked_be(bytes)
+            .and_then(|p| CtOption::new(p, p.is_torsion_free()))
     }
 
     /// Attempts to deserialize an uncompressed element, not checking if the
@@ -550,7 +555,7 @@ impl zeroize::DefaultIsZeroes for G2Projective {}
 
 impl fmt::Display for G2Projective {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
