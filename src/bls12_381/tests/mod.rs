@@ -33,8 +33,8 @@ fn g1_uncompressed_valid_test_vectors() {
     test_vectors!(
         G1Projective,
         G1Affine,
-        to_uncompressed,
-        from_uncompressed,
+        to_uncompressed_be,
+        from_uncompressed_be,
         bytes
     );
 }
@@ -45,8 +45,8 @@ fn g1_compressed_valid_test_vectors() {
     test_vectors!(
         G1Projective,
         G1Affine,
-        to_compressed,
-        from_compressed,
+        to_compressed_be,
+        from_compressed_be,
         bytes
     );
 }
@@ -57,8 +57,8 @@ fn g2_uncompressed_valid_test_vectors() {
     test_vectors!(
         G2Projective,
         G2Affine,
-        to_uncompressed,
-        from_uncompressed,
+        to_uncompressed_be,
+        from_uncompressed_be,
         bytes
     );
 }
@@ -69,8 +69,8 @@ fn g2_compressed_valid_test_vectors() {
     test_vectors!(
         G2Projective,
         G2Affine,
-        to_compressed,
-        from_compressed,
+        to_compressed_be,
+        from_compressed_be,
         bytes
     );
 }

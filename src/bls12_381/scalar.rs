@@ -816,6 +816,12 @@ where
     }
 }
 
+impl From<[u64; 4]> for Scalar {
+    fn from(digits: [u64; 4]) -> Self {
+        Self::from_raw(digits)
+    }
+}
+
 impl ff::FromUniformBytes<64> for Scalar {
     /// Converts a 512-bit little endian integer into
     /// an `Fq` by reducing by the modulus.

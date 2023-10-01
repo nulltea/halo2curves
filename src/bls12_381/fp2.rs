@@ -3,7 +3,8 @@
 #![allow(clippy::needless_borrow)]
 use core::fmt;
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
-use ff::Field;
+use std::cmp::Ordering;
+use ff::{Field, WithSmallOrderMulGroup};
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
@@ -50,6 +51,24 @@ impl PartialEq for Fp2 {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         bool::from(self.ct_eq(other))
+    }
+}
+
+impl Ord for Fp2 {
+    #[inline(always)]
+    fn cmp(&self, other: &Fp2) -> Ordering {
+        match self.c1.cmp(&other.c1) {
+            Ordering::Greater => Ordering::Greater,
+            Ordering::Less => Ordering::Less,
+            Ordering::Equal => self.c0.cmp(&other.c0),
+        }
+    }
+}
+
+impl PartialOrd for Fp2 {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &Fp2) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -360,6 +379,29 @@ impl Fp2 {
         }
         res
     }
+
+    /// Attempts to convert a little-endian byte representation of
+    /// a scalar into a `Fp`, failing if the input is not canonical.
+    pub fn from_bytes(bytes: &[u8; 96]) -> CtOption<Fp2> {
+        let c0 = Fp::from_bytes(bytes[0..48].try_into().unwrap());
+        let c1 = Fp::from_bytes(bytes[48..96].try_into().unwrap());
+        CtOption::new(
+            Fp2 {
+                c0: c0.unwrap(),
+                c1: c1.unwrap(),
+            },
+            c0.is_some() & c1.is_some(),
+        )
+    }
+
+    pub fn to_bytes(&self) -> [u8; 96] {
+        let mut res = [0u8; 96];
+        let c0_bytes = self.c0.to_bytes();
+        let c1_bytes = self.c1.to_bytes();
+        res[0..48].copy_from_slice(&c0_bytes[..]);
+        res[48..96].copy_from_slice(&c1_bytes[..]);
+        res
+    }
 }
 
 crate::impl_sum_prod!(Fp2);
@@ -534,7 +576,7 @@ impl ff::Field for Fp2 {
         let tv5 = tv4 * tv1; // 14. tv5 = tv4 * tv1
         tv3.conditional_assign(&tv2, !is_square); // 15. tv3 = CMOV(tv2, tv3, isQR)
         tv4.conditional_assign(&tv5, !is_square); // 16. tv4 = CMOV(tv5, tv4, isQR)
-        // 17. for i in (c1, c1 - 1, ..., 2):
+                                                  // 17. for i in (c1, c1 - 1, ..., 2):
         for i in (2..=C1).rev() {
             let tv5 = i as u32 - 2; // 18.    tv5 = i - 2
             let tv5 = num_bigint::BigUint::from(2u64).pow(tv5); // 19.    tv5 = 2^tv5
@@ -548,6 +590,102 @@ impl ff::Field for Fp2 {
         }
         (is_square, tv3)
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Fp2Bytes {
+    pub slice: [u8; 96],
+}
+
+impl Default for Fp2Bytes {
+    fn default() -> Self {
+        Self { slice: [0u8; 96] }
+    }
+}
+
+impl AsMut<[u8]> for Fp2Bytes {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.slice
+    }
+}
+
+impl AsRef<[u8]> for Fp2Bytes {
+    fn as_ref(&self) -> &[u8] {
+        &self.slice
+    }
+}
+
+impl ff::PrimeField for Fp2 {
+    type Repr = Fp2Bytes;
+
+    const NUM_BITS: u32 = 381;
+    const CAPACITY: u32 = 381 - 1;
+    const MODULUS: &'static str =
+        "0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab";
+    const MULTIPLICATIVE_GENERATOR: Self = unimplemented!();
+    const ROOT_OF_UNITY: Self = Self {
+        c0: Fp::from_raw_unchecked([
+            0x7bcf_a7a2_5aa3_0fda,
+            0xdc17_dec1_2a92_7e7c,
+            0x2f08_8dd8_6b4e_bef1,
+            0xd1ca_2087_da74_d4a7,
+            0x2da2_5966_96ce_bc1d,
+            0x0e2b_7eed_bbfd_87d2,
+        ]),
+        c1: Fp::from_raw_unchecked([
+            0x7bcf_a7a2_5aa3_0fda,
+            0xdc17_dec1_2a92_7e7c,
+            0x2f08_8dd8_6b4e_bef1,
+            0xd1ca_2087_da74_d4a7,
+            0x2da2_5966_96ce_bc1d,
+            0x0e2b_7eed_bbfd_87d2,
+        ]),
+    };
+    const ROOT_OF_UNITY_INV: Self = Fp2 {
+        c0: Fp::zero(),
+        c1: Fp::zero(),
+    };
+    const DELTA: Self = Fp2 {
+        c0: Fp::zero(),
+        c1: Fp::zero(),
+    };
+    const TWO_INV: Fp2 = Fp2 {
+        c0: Fp::zero(),
+        c1: Fp::zero(),
+    };
+    const S: u32 = 0;
+
+    fn from_repr(r: Self::Repr) -> CtOption<Self> {
+        // This uses little endian and so, assumes the array passed in is
+        // in that format.
+        Self::from_bytes(&r.slice)
+    }
+
+    fn to_repr(&self) -> Self::Repr {
+        let mut le_bytes = self.to_bytes();
+        le_bytes.reverse();
+        Fp2Bytes { slice: le_bytes }
+    }
+
+    fn is_odd(&self) -> Choice {
+        Choice::from(self.to_bytes()[0] & 1)
+    }
+}
+
+impl From<u64> for Fp2 {
+    fn from(val: u64) -> Self {
+        Fp2 {
+            c0: Fp::from(val),
+            c1: Fp::zero(),
+        }
+    }
+}
+
+impl WithSmallOrderMulGroup<3> for Fp2 {
+    const ZETA: Self = Fp2 {
+        c0: Fp::zero(),
+        c1: Fp::zero(),
+    };
 }
 
 #[test]

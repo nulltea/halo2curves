@@ -8,11 +8,15 @@ use group::{
     prime::{PrimeCurve, PrimeCurveAffine, PrimeGroup},
     Curve, Group, GroupEncoding, UncompressedEncoding,
 };
+use pasta_curves::arithmetic::{CurveAffine, Coordinates, CurveExt};
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
+use ff::Field;
 
 #[cfg(feature = "alloc")]
 use group::WnafGroup;
+
+use crate::CurveAffineExt;
 
 use super::fp::Fp;
 use super::fp2::Fp2;
@@ -159,6 +163,20 @@ impl<'a, 'b> Sub<&'b G2Affine> for &'a G2Projective {
     }
 }
 
+impl Add<G2Affine> for G2Affine {
+    type Output = G2Projective;
+    fn add(self, rhs: G2Affine) -> Self::Output {
+        self.to_curve() + rhs.to_curve()
+    }
+}
+
+impl Sub<G2Affine> for G2Affine {
+    type Output = G2Projective;
+    fn sub(self, rhs: G2Affine) -> Self::Output {
+        self + -rhs
+    }
+}
+
 impl<T> Sum<T> for G2Projective
 where
     T: Borrow<G2Projective>,
@@ -205,7 +223,30 @@ impl G2Affine {
         }
     }
 
-    /// Returns a fixed generator of the group. See [`notes::design`](notes/design/index.html#fixed-generators)
+    pub fn random(mut rng: impl RngCore) -> Self {
+        loop {
+            let x = Fp2::random(&mut rng);
+            let ysign = (rng.next_u32() % 2) as u8;
+
+            let x3 = x.square() * x;
+            let y = (x3 + B).sqrt();
+            if let Some(y) = Option::<Fp2>::from(y) {
+                let sign = y.to_bytes()[0] & 1;
+                let y = if ysign ^ sign == 0 { y } else { -y };
+
+                let p = G2Affine {
+                    x,
+                    y,
+                    infinity: 0.into(),
+                };
+
+                let p = p.to_curve();
+                return p.clear_cofactor().to_affine()
+            }
+        }
+    }
+
+    /// Returns a fixed generator of the group. See [`notes::design`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/design/index.html)
     /// for how this generator is chosen.
     pub fn generator() -> G2Affine {
         G2Affine {
@@ -249,17 +290,17 @@ impl G2Affine {
         }
     }
 
-    /// Serializes this element into compressed form. See [`notes::serialization`](crate::notes::serialization)
+    /// Serializes this element into compressed form. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
-    pub fn to_compressed(&self) -> [u8; 96] {
+    pub fn to_compressed_be(&self) -> [u8; 96] {
         // Strictly speaking, self.x is zero already when self.infinity is true, but
         // to guard against implementation mistakes we do not assume this.
         let x = Fp2::conditional_select(&self.x, &Fp2::zero(), self.infinity);
 
         let mut res = [0; 96];
 
-        res[0..48].copy_from_slice(&x.c1.to_bytes()[..]);
-        res[48..96].copy_from_slice(&x.c0.to_bytes()[..]);
+        res[0..48].copy_from_slice(&x.c1.to_bytes_be()[..]);
+        res[48..96].copy_from_slice(&x.c0.to_bytes_be()[..]);
 
         // This point is in compressed form, so we set the most significant bit.
         res[0] |= 1u8 << 7;
@@ -279,18 +320,18 @@ impl G2Affine {
         res
     }
 
-    /// Serializes this element into uncompressed form. See [`notes::serialization`](crate::notes::serialization)
+    /// Serializes this element into uncompressed form. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
-    pub fn to_uncompressed(&self) -> [u8; 192] {
+    pub fn to_uncompressed_be(&self) -> [u8; 192] {
         let mut res = [0; 192];
 
         let x = Fp2::conditional_select(&self.x, &Fp2::zero(), self.infinity);
         let y = Fp2::conditional_select(&self.y, &Fp2::zero(), self.infinity);
 
-        res[0..48].copy_from_slice(&x.c1.to_bytes()[..]);
-        res[48..96].copy_from_slice(&x.c0.to_bytes()[..]);
-        res[96..144].copy_from_slice(&y.c1.to_bytes()[..]);
-        res[144..192].copy_from_slice(&y.c0.to_bytes()[..]);
+        res[0..48].copy_from_slice(&x.c1.to_bytes_be()[..]);
+        res[48..96].copy_from_slice(&x.c0.to_bytes_be()[..]);
+        res[96..144].copy_from_slice(&y.c1.to_bytes_be()[..]);
+        res[144..192].copy_from_slice(&y.c0.to_bytes_be()[..]);
 
         // Is this point at infinity? If so, set the second-most significant bit.
         res[0] |= u8::conditional_select(&0u8, &(1u8 << 6), self.infinity);
@@ -298,10 +339,10 @@ impl G2Affine {
         res
     }
 
-    /// Attempts to deserialize an uncompressed element. See [`notes::serialization`](crate::notes::serialization)
+    /// Attempts to deserialize an uncompressed element. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
-    pub fn from_uncompressed(bytes: &[u8; 192]) -> CtOption<Self> {
-        Self::from_uncompressed_unchecked(bytes)
+    pub fn from_uncompressed_be(bytes: &[u8; 192]) -> CtOption<Self> {
+        Self::from_uncompressed_unchecked_be(bytes)
             .and_then(|p| CtOption::new(p, p.is_on_curve() & p.is_torsion_free()))
     }
 
@@ -309,7 +350,7 @@ impl G2Affine {
     /// element is on the curve and not checking if it is in the correct subgroup.
     /// **This is dangerous to call unless you trust the bytes you are reading; otherwise,
     /// API invariants may be broken.** Please consider using `from_uncompressed()` instead.
-    pub fn from_uncompressed_unchecked(bytes: &[u8; 192]) -> CtOption<Self> {
+    pub fn from_uncompressed_unchecked_be(bytes: &[u8; 192]) -> CtOption<Self> {
         // Obtain the three flags from the start of the byte sequence
         let compression_flag_set = Choice::from((bytes[0] >> 7) & 1);
         let infinity_flag_set = Choice::from((bytes[0] >> 6) & 1);
@@ -323,13 +364,13 @@ impl G2Affine {
             // Mask away the flag bits
             tmp[0] &= 0b0001_1111;
 
-            Fp::from_bytes(&tmp)
+            Fp::from_bytes_be(&tmp)
         };
         let xc0 = {
             let mut tmp = [0; 48];
             tmp.copy_from_slice(&bytes[48..96]);
 
-            Fp::from_bytes(&tmp)
+            Fp::from_bytes_be(&tmp)
         };
 
         // Attempt to obtain the y-coordinate
@@ -337,13 +378,13 @@ impl G2Affine {
             let mut tmp = [0; 48];
             tmp.copy_from_slice(&bytes[96..144]);
 
-            Fp::from_bytes(&tmp)
+            Fp::from_bytes_be(&tmp)
         };
         let yc0 = {
             let mut tmp = [0; 48];
             tmp.copy_from_slice(&bytes[144..192]);
 
-            Fp::from_bytes(&tmp)
+            Fp::from_bytes_be(&tmp)
         };
 
         xc1.and_then(|xc1| {
@@ -385,20 +426,20 @@ impl G2Affine {
         })
     }
 
-    /// Attempts to deserialize a compressed element. See [`notes::serialization`](crate::notes::serialization)
+    /// Attempts to deserialize a compressed element. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
-    pub fn from_compressed(bytes: &[u8; 96]) -> CtOption<Self> {
+    pub fn from_compressed_be(bytes: &[u8; 96]) -> CtOption<Self> {
         // We already know the point is on the curve because this is established
         // by the y-coordinate recovery procedure in from_compressed_unchecked().
 
-        Self::from_compressed_unchecked(bytes).and_then(|p| CtOption::new(p, p.is_torsion_free()))
+        Self::from_compressed_unchecked_be(bytes).and_then(|p| CtOption::new(p, p.is_torsion_free()))
     }
 
     /// Attempts to deserialize an uncompressed element, not checking if the
     /// element is in the correct subgroup.
     /// **This is dangerous to call unless you trust the bytes you are reading; otherwise,
     /// API invariants may be broken.** Please consider using `from_compressed()` instead.
-    pub fn from_compressed_unchecked(bytes: &[u8; 96]) -> CtOption<Self> {
+    pub fn from_compressed_unchecked_be(bytes: &[u8; 96]) -> CtOption<Self> {
         // Obtain the three flags from the start of the byte sequence
         let compression_flag_set = Choice::from((bytes[0] >> 7) & 1);
         let infinity_flag_set = Choice::from((bytes[0] >> 6) & 1);
@@ -412,13 +453,13 @@ impl G2Affine {
             // Mask away the flag bits
             tmp[0] &= 0b0001_1111;
 
-            Fp::from_bytes(&tmp)
+            Fp::from_bytes_be(&tmp)
         };
         let xc0 = {
             let mut tmp = [0; 48];
             tmp.copy_from_slice(&bytes[48..96]);
 
-            Fp::from_bytes(&tmp)
+            Fp::from_bytes_be(&tmp)
         };
 
         xc1.and_then(|xc1| {
@@ -661,7 +702,7 @@ impl G2Projective {
         }
     }
 
-    /// Returns a fixed generator of the group. See [`notes::design`](notes/design/index.html#fixed-generators)
+    /// Returns a fixed generator of the group. See [`notes::design`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/design/index.html)
     /// for how this generator is chosen.
     pub fn generator() -> G2Projective {
         G2Projective {
@@ -1207,15 +1248,15 @@ impl GroupEncoding for G2Affine {
     type Repr = G2Compressed;
 
     fn from_bytes(bytes: &Self::Repr) -> CtOption<Self> {
-        Self::from_compressed(&bytes.0)
+        Self::from_compressed_be(&bytes.0)
     }
 
     fn from_bytes_unchecked(bytes: &Self::Repr) -> CtOption<Self> {
-        Self::from_compressed_unchecked(&bytes.0)
+        Self::from_compressed_unchecked_be(&bytes.0)
     }
 
     fn to_bytes(&self) -> Self::Repr {
-        G2Compressed(self.to_compressed())
+        G2Compressed(self.to_compressed_be())
     }
 }
 
@@ -1223,15 +1264,119 @@ impl UncompressedEncoding for G2Affine {
     type Uncompressed = G2Uncompressed;
 
     fn from_uncompressed(bytes: &Self::Uncompressed) -> CtOption<Self> {
-        Self::from_uncompressed(&bytes.0)
+        Self::from_uncompressed_be(&bytes.0)
     }
 
     fn from_uncompressed_unchecked(bytes: &Self::Uncompressed) -> CtOption<Self> {
-        Self::from_uncompressed_unchecked(&bytes.0)
+        Self::from_uncompressed_unchecked_be(&bytes.0)
     }
 
     fn to_uncompressed(&self) -> Self::Uncompressed {
-        G2Uncompressed(self.to_uncompressed())
+        G2Uncompressed(self.to_uncompressed_be())
+    }
+}
+
+impl CurveExt for G2Projective {
+    type ScalarExt = Scalar;
+    type Base = Fp2;
+    type AffineExt = G2Affine;
+
+    const CURVE_ID: &'static str = "Bls12-381";
+
+    fn endo(&self) -> Self {
+        unimplemented!()
+    }
+
+    fn jacobian_coordinates(&self) -> (Fp2, Fp2, Fp2) {
+        // Homogenous to Jacobian
+        let x = self.x * self.z;
+        let y = self.y * self.z.square();
+        (x, y, self.z)
+    }
+
+    fn hash_to_curve<'a>(_domain_prefix: &'a str) -> Box<dyn Fn(&[u8]) -> Self + 'a> {
+        // XXX: TODO
+        unimplemented!()
+    }
+
+    fn is_on_curve(&self) -> Choice {
+        // Check (Y/Z)^2 = (X/Z)^3 + b
+        // <=>    Z Y^2 - X^3 = Z^3 b
+
+        // (self.z * self.y.square() - self.x.square() * self.x)
+        //     .ct_eq(&(self.z.square() * self.z * G2Affine::b()))
+        //     | self.z.is_zero()
+        unimplemented!()
+    }
+
+    fn b() -> Self::Base {
+        B
+    }
+
+    fn a() -> Self::Base {
+        Self::Base::ZERO
+    }
+
+    fn new_jacobian(x: Self::Base, y: Self::Base, z: Self::Base) -> CtOption<Self> {
+        // Jacobian to homogenous
+        let z_inv = z.invert().unwrap_or(Fp2::zero());
+        let p_x = x * z_inv;
+        let p_y = y * z_inv.square();
+        let p = Self {
+            x: p_x,
+            y: Fp2::conditional_select(&p_y, &Fp2::ONE, z.is_zero()),
+            z,
+        };
+        CtOption::new(p, p.is_on_curve())
+    }
+}
+
+impl CurveAffine for G2Affine {
+    /// The scalar field of this elliptic curve.
+    type ScalarExt = super::Scalar;
+    /// The base field over which this elliptic curve is constructed.
+    type Base = super::fp2::Fp2;
+    /// The projective form of the curve
+    type CurveExt = G2Projective;
+
+    /// Gets the coordinates of this point.
+    ///
+    /// Returns None if this is the identity.
+    fn coordinates(&self) -> CtOption<Coordinates<Self>> {
+        Coordinates::from_xy(self.x, self.y)
+    }
+
+    /// Obtains a point given $(x, y)$, failing if it is not on the
+    /// curve.
+    fn from_xy(x: Self::Base, y: Self::Base) -> CtOption<Self> {
+        let p: G2Affine = Self {
+            x,
+            y,
+            infinity: x.ct_eq(&Self::Base::ZERO) & y.ct_eq(&Self::Base::ZERO),
+        };
+        CtOption::new(p, p.is_on_curve())
+    }
+
+    /// Returns whether or not this element is on the curve; should
+    /// always be true unless an "unchecked" API was used.
+    fn is_on_curve(&self) -> Choice {
+        self.is_on_curve()
+    }
+
+    /// Returns the curve constant $a$.
+    fn a() -> Self::Base {
+        Self::Base::ZERO
+    }
+
+    /// Returns the curve constant $b$.
+    fn b() -> Self::Base {
+        B
+    }
+}
+
+impl CurveAffineExt for G2Affine {
+    fn into_coordinates(self) -> (Self::Base, Self::Base) {
+        (self.x, self.y)
     }
 }
 

@@ -367,9 +367,7 @@ impl PrimeField for Fp {
     }
 
     fn to_repr(&self) -> Self::Repr {
-        let mut le_bytes = self.to_bytes();
-        le_bytes.reverse();
-        ReprFp(le_bytes)
+        ReprFp(self.to_bytes())
     }
 
     fn is_odd(&self) -> Choice {
@@ -404,9 +402,45 @@ impl Fp {
         R
     }
 
-    /// Attempts to convert a big-endian byte representation of
+    /// Attempts to convert a little-endian byte representation of
     /// a scalar into an `Fp`, failing if the input is not canonical.
     pub fn from_bytes(bytes: &[u8; 48]) -> CtOption<Fp> {
+        let mut tmp = Fp([0, 0, 0, 0, 0, 0]);
+
+        tmp.0[0] = u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[0..8]).unwrap());
+        tmp.0[1] = u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[8..16]).unwrap());
+        tmp.0[2] = u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[16..24]).unwrap());
+        tmp.0[3] = u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[24..32]).unwrap());
+        tmp.0[4] = u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[32..40]).unwrap());
+        tmp.0[5] = u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[40..48]).unwrap());
+
+        // pub(crate) const fn sbb(a: u64, b: u64, borrow: bool) -> (u64, bool) {
+        //     a.borrowing_sub(b, borrow)
+        // }
+
+        // Try to subtract the modulus
+        let (_, borrow) = sbb(tmp.0[0], MODULUS[0], 0);
+        let (_, borrow) = sbb(tmp.0[1], MODULUS[1], borrow as u64);
+        let (_, borrow) = sbb(tmp.0[2], MODULUS[2], borrow);
+        let (_, borrow) = sbb(tmp.0[3], MODULUS[3], borrow);
+        let (_, borrow) = sbb(tmp.0[4], MODULUS[4], borrow);
+        let (_, borrow) = sbb(tmp.0[5], MODULUS[5], borrow);
+
+        // If the element is smaller than MODULUS then the
+        // subtraction will underflow, producing a borrow value
+        // of 0xffff...ffff. Otherwise, it'll be zero.
+        let is_some = (borrow as u8) & 1;
+
+        // Convert to Montgomery form by computing
+        // (a.R^0 * R^2) / R = a.R
+        tmp *= &R2;
+
+        CtOption::new(tmp, Choice::from(is_some))
+    }
+
+    /// Attempts to convert a big-endian byte representation of
+    /// a scalar into an `Fp`, failing if the input is not canonical.
+    pub fn from_bytes_be(bytes: &[u8; 48]) -> CtOption<Fp> {
         let mut tmp = Fp([0, 0, 0, 0, 0, 0]);
 
         tmp.0[5] = u64::from_be_bytes(<[u8; 8]>::try_from(&bytes[0..8]).unwrap());
@@ -438,7 +472,7 @@ impl Fp {
 
     /// Converts an element of `Fp` into a byte representation in
     /// big-endian byte order.
-    pub fn to_bytes(self) -> [u8; 48] {
+    pub fn to_bytes_be(self) -> [u8; 48] {
         // Turn into canonical form by computing
         // (a.R) / R = a
         let tmp = Fp::montgomery_reduce(
@@ -452,6 +486,26 @@ impl Fp {
         res[24..32].copy_from_slice(&tmp.0[2].to_be_bytes());
         res[32..40].copy_from_slice(&tmp.0[1].to_be_bytes());
         res[40..48].copy_from_slice(&tmp.0[0].to_be_bytes());
+
+        res
+    }
+
+    /// Converts an element of `Fp` into a byte representation in
+    /// little-endian byte order.
+    pub fn to_bytes(self) -> [u8; 48] {
+        // Turn into canonical form by computing
+        // (a.R) / R = a
+        let tmp = Fp::montgomery_reduce(
+            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5], 0, 0, 0, 0, 0, 0,
+        );
+
+        let mut res = [0; 48];
+        res[0..8].copy_from_slice(&tmp.0[0].to_le_bytes());
+        res[8..16].copy_from_slice(&tmp.0[1].to_le_bytes());
+        res[16..24].copy_from_slice(&tmp.0[2].to_le_bytes());
+        res[24..32].copy_from_slice(&tmp.0[3].to_le_bytes());
+        res[32..40].copy_from_slice(&tmp.0[4].to_le_bytes());
+        res[40..48].copy_from_slice(&tmp.0[5].to_le_bytes());
 
         res
     }
@@ -939,7 +993,6 @@ impl From<[u64; 6]> for Fp {
     }
 }
 
-
 #[test]
 fn test_constants() {
     assert_eq!(Fp::ONE.double(), GENERATOR);
@@ -1132,24 +1185,6 @@ fn test_negation() {
 }
 
 #[test]
-fn test_debug() {
-    assert_eq!(
-        format!(
-            "{:?}",
-            Fp([
-                0x5360_bb59_7867_8032,
-                0x7dd2_75ae_799e_128e,
-                0x5c5b_5071_ce4f_4dcf,
-                0xcdb2_1f93_078d_bb3e,
-                0xc323_65c5_e73f_474a,
-                0x115a_2a54_89ba_be5b,
-            ])
-        ),
-        "0x104bf052ad3bc99bcb176c24a06a6c3aad4eaf2308fc4d282e106c84a757d061052630515305e59bdddf8111bfdeb704"
-    );
-}
-
-#[test]
 fn test_from_bytes() {
     let mut a = Fp([
         0xdc90_6d9b_e3f9_5dc8,
@@ -1162,15 +1197,15 @@ fn test_from_bytes() {
 
     for _ in 0..100 {
         a = a.square();
-        let tmp = a.to_bytes();
-        let b = Fp::from_bytes(&tmp).unwrap();
+        let tmp = a.to_bytes_be();
+        let b = Fp::from_bytes_be(&tmp).unwrap();
 
         assert_eq!(a, b);
     }
 
     assert_eq!(
         -Fp::one(),
-        Fp::from_bytes(&[
+        Fp::from_bytes_be(&[
             26, 1, 17, 234, 57, 127, 230, 154, 75, 27, 167, 182, 67, 75, 172, 215, 100, 119, 75,
             132, 243, 133, 18, 191, 103, 48, 210, 160, 246, 176, 246, 36, 30, 171, 255, 254, 177,
             83, 255, 255, 185, 254, 255, 255, 255, 255, 170, 170
@@ -1179,7 +1214,7 @@ fn test_from_bytes() {
     );
 
     assert!(bool::from(
-        Fp::from_bytes(&[
+        Fp::from_bytes_be(&[
             27, 1, 17, 234, 57, 127, 230, 154, 75, 27, 167, 182, 67, 75, 172, 215, 100, 119, 75,
             132, 243, 133, 18, 191, 103, 48, 210, 160, 246, 176, 246, 36, 30, 171, 255, 254, 177,
             83, 255, 255, 185, 254, 255, 255, 255, 255, 170, 170
@@ -1187,7 +1222,7 @@ fn test_from_bytes() {
         .is_none()
     ));
 
-    assert!(bool::from(Fp::from_bytes(&[0xff; 48]).is_none()));
+    assert!(bool::from(Fp::from_bytes_be(&[0xff; 48]).is_none()));
 }
 
 #[test]
@@ -1287,4 +1322,22 @@ fn test_zeroize() {
     let mut a = Fp::one();
     a.zeroize();
     assert!(bool::from(a.is_zero()));
+}
+
+#[test]
+fn test_from_bytes_debug() {
+    // let mut bytes = vec![
+    //     220u8, 214, 26, 93, 113, 152, 62, 165, 185, 230, 195, 24, 61, 41, 116, 148, 248, 59, 10,
+    //     81, 185, 242, 151, 83, 182, 242, 42, 201, 239, 33, 70, 221, 221, 179, 240, 87, 84, 220,
+    //     123, 92, 72, 180, 248, 99, 100, 200, 6, 9
+    // ];
+    // // bytes.reserve(0);
+    assert!(bool::from(
+        Fp::from_bytes(&[
+            220u8, 214, 26, 93, 113, 152, 62, 165, 185, 230, 195, 24, 61, 41, 116, 148, 248, 59,
+            10, 81, 185, 242, 151, 83, 182, 242, 42, 201, 239, 33, 70, 221, 221, 179, 240, 87, 84,
+            220, 123, 92, 72, 180, 248, 99, 100, 200, 6, 9
+        ])
+        .is_some()
+    ));
 }

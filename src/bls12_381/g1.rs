@@ -17,8 +17,9 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 #[cfg(feature = "alloc")]
 use group::WnafGroup;
 
-#[cfg(feature = "alloc")]
 use pasta_curves::arithmetic::{Coordinates, CurveAffine, CurveExt};
+
+use crate::CurveAffineExt;
 
 use super::fp::Fp;
 use super::Scalar;
@@ -212,7 +213,30 @@ impl G1Affine {
         }
     }
 
-    /// Returns a fixed generator of the group. See [`notes::design`](notes/design/index.html#fixed-generators)
+    pub fn random(mut rng: impl RngCore) -> Self {
+        loop {
+            let x = Fp::random(&mut rng);
+            let ysign = (rng.next_u32() % 2) as u8;
+
+            let x3 = x.square() * x;
+            let y = (x3 + B).sqrt();
+            if let Some(y) = Option::<Fp>::from(y) {
+                let sign = y.to_bytes()[0] & 1;
+                let y = if ysign ^ sign == 0 { y } else { -y };
+
+                let p = G1Affine {
+                    x,
+                    y,
+                    infinity: 0.into(),
+                };
+
+                let p = p.to_curve();
+                return p.clear_cofactor().to_affine();
+            }
+        }
+    }
+
+    /// Returns a fixed generator of the group. See [`notes::design`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/design/index.html)
     /// for how this generator is chosen.
     pub fn generator() -> G1Affine {
         G1Affine {
@@ -236,12 +260,12 @@ impl G1Affine {
         }
     }
 
-    /// Serializes this element into compressed form. See [`notes::serialization`](crate::notes::serialization)
+    /// Serializes this element into compressed form. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
-    pub fn to_compressed(&self) -> [u8; 48] {
+    pub fn to_compressed_be(&self) -> [u8; 48] {
         // Strictly speaking, self.x is zero already when self.infinity is true, but
         // to guard against implementation mistakes we do not assume this.
-        let mut res = Fp::conditional_select(&self.x, &Fp::zero(), self.infinity).to_bytes();
+        let mut res = Fp::conditional_select(&self.x, &Fp::zero(), self.infinity).to_bytes_be();
 
         // This point is in compressed form, so we set the most significant bit.
         res[0] |= 1u8 << 7;
@@ -261,16 +285,16 @@ impl G1Affine {
         res
     }
 
-    /// Serializes this element into uncompressed form. See [`notes::serialization`](crate::notes::serialization)
+    /// Serializes this element into uncompressed form. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
-    pub fn to_uncompressed(&self) -> [u8; 96] {
+    pub fn to_uncompressed_be(&self) -> [u8; 96] {
         let mut res = [0; 96];
 
         res[0..48].copy_from_slice(
-            &Fp::conditional_select(&self.x, &Fp::zero(), self.infinity).to_bytes()[..],
+            &Fp::conditional_select(&self.x, &Fp::zero(), self.infinity).to_bytes_be()[..],
         );
         res[48..96].copy_from_slice(
-            &Fp::conditional_select(&self.y, &Fp::zero(), self.infinity).to_bytes()[..],
+            &Fp::conditional_select(&self.y, &Fp::zero(), self.infinity).to_bytes_be()[..],
         );
 
         // Is this point at infinity? If so, set the second-most significant bit.
@@ -279,10 +303,10 @@ impl G1Affine {
         res
     }
 
-    /// Attempts to deserialize an uncompressed element. See [`notes::serialization`](crate::notes::serialization)
+    /// Attempts to deserialize an uncompressed element. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
-    pub fn from_uncompressed(bytes: &[u8; 96]) -> CtOption<Self> {
-        Self::from_uncompressed_unchecked(bytes)
+    pub fn from_uncompressed_be(bytes: &[u8; 96]) -> CtOption<Self> {
+        Self::from_uncompressed_unchecked_be(bytes)
             .and_then(|p| CtOption::new(p, p.is_on_curve() & p.is_torsion_free()))
     }
 
@@ -290,7 +314,7 @@ impl G1Affine {
     /// element is on the curve and not checking if it is in the correct subgroup.
     /// **This is dangerous to call unless you trust the bytes you are reading; otherwise,
     /// API invariants may be broken.** Please consider using `from_uncompressed()` instead.
-    pub fn from_uncompressed_unchecked(bytes: &[u8; 96]) -> CtOption<Self> {
+    pub fn from_uncompressed_unchecked_be(bytes: &[u8; 96]) -> CtOption<Self> {
         // Obtain the three flags from the start of the byte sequence
         let compression_flag_set = Choice::from((bytes[0] >> 7) & 1);
         let infinity_flag_set = Choice::from((bytes[0] >> 6) & 1);
@@ -304,7 +328,7 @@ impl G1Affine {
             // Mask away the flag bits
             tmp[0] &= 0b0001_1111;
 
-            Fp::from_bytes(&tmp)
+            Fp::from_bytes_be(&tmp)
         };
 
         // Attempt to obtain the y-coordinate
@@ -312,7 +336,7 @@ impl G1Affine {
             let mut tmp = [0; 48];
             tmp.copy_from_slice(&bytes[48..96]);
 
-            Fp::from_bytes(&tmp)
+            Fp::from_bytes_be(&tmp)
         };
 
         x.and_then(|x| {
@@ -341,20 +365,20 @@ impl G1Affine {
         })
     }
 
-    /// Attempts to deserialize a compressed element. See [`notes::serialization`](crate::notes::serialization)
+    /// Attempts to deserialize a compressed element. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
-    pub fn from_compressed(bytes: &[u8; 48]) -> CtOption<Self> {
+    pub fn from_compressed_be(bytes: &[u8; 48]) -> CtOption<Self> {
         // We already know the point is on the curve because this is established
         // by the y-coordinate recovery procedure in from_compressed_unchecked().
 
-        Self::from_compressed_unchecked(bytes).and_then(|p| CtOption::new(p, p.is_torsion_free()))
+        Self::from_compressed_unchecked_be(bytes).and_then(|p| CtOption::new(p, p.is_torsion_free()))
     }
 
     /// Attempts to deserialize an uncompressed element, not checking if the
     /// element is in the correct subgroup.
     /// **This is dangerous to call unless you trust the bytes you are reading; otherwise,
     /// API invariants may be broken.** Please consider using `from_compressed()` instead.
-    pub fn from_compressed_unchecked(bytes: &[u8; 48]) -> CtOption<Self> {
+    pub fn from_compressed_unchecked_be(bytes: &[u8; 48]) -> CtOption<Self> {
         // Obtain the three flags from the start of the byte sequence
         let compression_flag_set = Choice::from((bytes[0] >> 7) & 1);
         let infinity_flag_set = Choice::from((bytes[0] >> 6) & 1);
@@ -368,7 +392,7 @@ impl G1Affine {
             // Mask away the flag bits
             tmp[0] &= 0b0001_1111;
 
-            Fp::from_bytes(&tmp)
+            Fp::from_bytes_be(&tmp)
         };
 
         x.and_then(|x| {
@@ -456,12 +480,11 @@ fn endomorphism(p: &G1Affine) -> G1Affine {
     res
 }
 
-#[cfg(feature = "alloc")]
 impl CurveAffine for G1Affine {
     /// The scalar field of this elliptic curve.
-    type ScalarExt = crate::Scalar;
+    type ScalarExt = super::Scalar;
     /// The base field over which this elliptic curve is constructed.
-    type Base = crate::fp::Fp;
+    type Base = super::fp::Fp;
     /// The projective form of the curve
     type CurveExt = G1Projective;
 
@@ -497,6 +520,12 @@ impl CurveAffine for G1Affine {
     /// Returns the curve constant $b$.
     fn b() -> Self::Base {
         B
+    }
+}
+
+impl CurveAffineExt for G1Affine {
+    fn into_coordinates(self) -> (Self::Base, Self::Base) {
+        (self.x, self.y)
     }
 }
 
@@ -651,7 +680,6 @@ impl<'a, 'b> Mul<&'b G1Affine> for &'a Scalar {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl CurveExt for G1Projective {
     type ScalarExt = Scalar;
     type Base = Fp;
@@ -729,7 +757,7 @@ impl G1Projective {
         }
     }
 
-    /// Returns a fixed generator of the group. See [`notes::design`](notes/design/index.html#fixed-generators)
+    /// Returns a fixed generator of the group. See [`notes::design`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/design/index.html)
     /// for how this generator is chosen.
     pub fn generator() -> G1Projective {
         G1Projective {
@@ -1182,15 +1210,15 @@ impl GroupEncoding for G1Affine {
     type Repr = G1Compressed;
 
     fn from_bytes(bytes: &Self::Repr) -> CtOption<Self> {
-        Self::from_compressed(&bytes.0)
+        Self::from_compressed_be(&bytes.0)
     }
 
     fn from_bytes_unchecked(bytes: &Self::Repr) -> CtOption<Self> {
-        Self::from_compressed_unchecked(&bytes.0)
+        Self::from_compressed_unchecked_be(&bytes.0)
     }
 
     fn to_bytes(&self) -> Self::Repr {
-        G1Compressed(self.to_compressed())
+        G1Compressed(self.to_compressed_be())
     }
 }
 
@@ -1198,15 +1226,15 @@ impl UncompressedEncoding for G1Affine {
     type Uncompressed = G1Uncompressed;
 
     fn from_uncompressed(bytes: &Self::Uncompressed) -> CtOption<Self> {
-        Self::from_uncompressed(&bytes.0)
+        Self::from_uncompressed_be(&bytes.0)
     }
 
     fn from_uncompressed_unchecked(bytes: &Self::Uncompressed) -> CtOption<Self> {
-        Self::from_uncompressed_unchecked(&bytes.0)
+        Self::from_uncompressed_unchecked_be(&bytes.0)
     }
 
     fn to_uncompressed(&self) -> Self::Uncompressed {
-        G1Uncompressed(self.to_uncompressed())
+        G1Uncompressed(self.to_uncompressed_be())
     }
 }
 
@@ -1214,7 +1242,7 @@ impl UncompressedEncoding for G1Affine {
 fn test_beta() {
     assert_eq!(
         BETA,
-        Fp::from_bytes(&[
+        Fp::from_bytes_be(&[
             0x00u8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5f, 0x19, 0x67, 0x2f, 0xdf, 0x76,
             0xce, 0x51, 0xba, 0x69, 0xc6, 0x07, 0x6a, 0x0f, 0x77, 0xea, 0xdd, 0xb3, 0xa9, 0x3b,
             0xe6, 0xf8, 0x96, 0x88, 0xde, 0x17, 0xd8, 0x13, 0x62, 0x0a, 0x00, 0x02, 0x2e, 0x01,
