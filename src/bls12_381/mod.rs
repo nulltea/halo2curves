@@ -51,8 +51,8 @@ pub const BLS_X_IS_NEGATIVE: bool = true;
 
 mod pairings;
 
-pub use pairings::{pairing, Bls12, Gt, MillerLoopResult};
 pub use pairings::{multi_miller_loop, G2Prepared};
+pub use pairings::{pairing, Bls12, Gt, MillerLoopResult};
 
 mod endo;
 

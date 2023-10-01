@@ -11,9 +11,8 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 use crate::arithmetic::{adc, mac, sbb};
 use crate::{
-    impl_add_binop_specify_output, impl_binops_additive,
-    impl_binops_additive_specify_output, impl_binops_multiplicative,
-    impl_binops_multiplicative_mixed, impl_sub_binop_specify_output,
+    impl_add_binop_specify_output, impl_binops_additive, impl_binops_additive_specify_output,
+    impl_binops_multiplicative, impl_binops_multiplicative_mixed, impl_sub_binop_specify_output,
 };
 /// Represents an element of the base field $\mathbb{F}_p$ of the BLS12-381 elliptic
 /// curve construction.

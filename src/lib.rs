@@ -8,9 +8,9 @@ pub mod multicore;
 pub mod legendre;
 pub mod serde;
 
+pub mod bls12_381;
 pub mod bn256;
 pub mod grumpkin;
-pub mod bls12_381;
 pub mod pasta;
 pub mod secp256k1;
 pub mod secp256r1;
