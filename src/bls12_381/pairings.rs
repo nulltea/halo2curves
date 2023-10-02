@@ -1,3 +1,5 @@
+//! Source: https://github.com/privacy-scaling-explorations/bls12_381
+
 use super::fp::Fp;
 use super::fp12::Fp12;
 use super::fp2::Fp2;
@@ -9,7 +11,7 @@ use core::fmt;
 use core::iter::Sum;
 use core::ops::{Add, AddAssign, Mul, Neg, Sub};
 use group::Group;
-use pairing::{Engine, PairingCurveAffine};
+use pairing::{Engine, PairingCurveAffine, MultiMillerLoop};
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
@@ -491,14 +493,11 @@ impl Group for Gt {
 /// multiple pairings or is otherwise known in advance. This should be used in
 /// conjunction with the [`multi_miller_loop`](crate::multi_miller_loop)
 /// function provided by this crate.
-///
-/// Requires the `alloc` and `pairing` crate features to be enabled.
 pub struct G2Prepared {
     infinity: Choice,
     coeffs: Vec<(Fp2, Fp2, Fp2)>,
 }
 
-#[cfg(feature = "alloc")]
 impl From<G2Affine> for G2Prepared {
     fn from(q: G2Affine) -> G2Prepared {
         struct Adder {
@@ -545,8 +544,6 @@ impl From<G2Affine> for G2Prepared {
 
 /// Computes $$\sum_{i=1}^n \textbf{ML}(a_i, b_i)$$ given a series of terms
 /// $$(a_1, b_1), (a_2, b_2), ..., (a_n, b_n).$$
-///
-/// Requires the `alloc` and `pairing` crate features to be enabled.
 pub fn multi_miller_loop(terms: &[(&G1Affine, &G2Prepared)]) -> MillerLoopResult {
     struct Adder<'a, 'b, 'c> {
         terms: &'c [(&'a G1Affine, &'b G2Prepared)],
@@ -809,7 +806,6 @@ impl pairing::MillerLoopResult for MillerLoopResult {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl MultiMillerLoop for Bls12 {
     type G2Prepared = G2Prepared;
     type Result = MillerLoopResult;
@@ -862,7 +858,6 @@ fn test_unitary() {
     assert_eq!(q, r);
 }
 
-#[cfg(feature = "alloc")]
 #[test]
 fn test_multi_miller_loop() {
     let a1 = G1Affine::generator();

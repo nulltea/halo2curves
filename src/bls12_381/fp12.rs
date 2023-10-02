@@ -1,3 +1,5 @@
+//! Source: https://github.com/privacy-scaling-explorations/bls12_381
+
 use crate::{
     impl_add_binop_specify_output, impl_binops_additive, impl_binops_additive_specify_output,
     impl_binops_multiplicative, impl_binops_multiplicative_mixed, impl_sub_binop_specify_output,

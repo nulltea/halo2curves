@@ -1,7 +1,7 @@
 //! This module provides an implementation of the $\mathbb{G}_1$ group of BLS12-381.
+//! 
+//! Source: https://github.com/privacy-scaling-explorations/bls12_381
 
-#[cfg(feature = "alloc")]
-use alloc::boxed::Box;
 use core::borrow::Borrow;
 use core::fmt;
 use core::iter::Sum;
@@ -22,9 +22,6 @@ use crate::{
     impl_add_binop_specify_output, impl_binops_additive, impl_binops_additive_specify_output,
     impl_binops_multiplicative, impl_binops_multiplicative_mixed, impl_sub_binop_specify_output,
 };
-
-#[cfg(feature = "alloc")]
-use group::WnafGroup;
 
 /// This is an element of $\mathbb{G}_1$ represented in the affine coordinate space.
 /// It is ideal to keep elements in this representation to reduce memory usage and
@@ -264,6 +261,8 @@ impl G1Affine {
 
     /// Serializes this element into compressed form. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
+    ///
+    /// NOTE: this function used in [`CompressedEncoding::to_uncompressed`].
     pub fn to_compressed_be(&self) -> [u8; 48] {
         // Strictly speaking, self.x is zero already when self.infinity is true, but
         // to guard against implementation mistakes we do not assume this.
@@ -289,6 +288,8 @@ impl G1Affine {
 
     /// Serializes this element into uncompressed form. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
+    ///
+    /// NOTE: this function used in [`UncompressedEncoding::to_uncompressed`].
     pub fn to_uncompressed_be(&self) -> [u8; 96] {
         let mut res = [0; 96];
 
@@ -307,6 +308,8 @@ impl G1Affine {
 
     /// Attempts to deserialize an uncompressed element. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
+    ///
+    /// NOTE: this function used in [`UncompressedEncoding::from_uncompressed`].
     pub fn from_uncompressed_be(bytes: &[u8; 96]) -> CtOption<Self> {
         Self::from_uncompressed_unchecked_be(bytes)
             .and_then(|p| CtOption::new(p, p.is_on_curve() & p.is_torsion_free()))
@@ -369,6 +372,8 @@ impl G1Affine {
 
     /// Attempts to deserialize a compressed element. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
+    /// 
+    /// NOTE: this function used in [`CompressedEncoding::from_compressed`].
     pub fn from_compressed_be(bytes: &[u8; 48]) -> CtOption<Self> {
         // We already know the point is on the curve because this is established
         // by the y-coordinate recovery procedure in from_compressed_unchecked().
@@ -1135,25 +1140,6 @@ impl Group for G1Projective {
     }
 }
 
-#[cfg(feature = "alloc")]
-impl WnafGroup for G1Projective {
-    fn recommended_wnaf_for_num_scalars(num_scalars: usize) -> usize {
-        const RECOMMENDATIONS: [usize; 12] =
-            [1, 3, 7, 20, 43, 120, 273, 563, 1630, 3128, 7933, 62569];
-
-        let mut ret = 4;
-        for r in &RECOMMENDATIONS {
-            if num_scalars > *r {
-                ret += 1;
-            } else {
-                break;
-            }
-        }
-
-        ret
-    }
-}
-
 impl PrimeGroup for G1Projective {}
 
 impl Curve for G1Projective {
@@ -1225,6 +1211,9 @@ impl GroupEncoding for G1Affine {
     }
 }
 
+/// Allows to de/encode G1 points from uncompressed bytes.
+/// NOTE: This implements uses **big endian** encoding.
+/// BE is a more common encoding for BLS12-381 (e.g. Validator pubkeys in Ethereum are in BE).
 impl UncompressedEncoding for G1Affine {
     type Uncompressed = G1Uncompressed;
 

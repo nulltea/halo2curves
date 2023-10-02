@@ -1,3 +1,5 @@
+//! Source: https://github.com/privacy-scaling-explorations/halo2curves/blob/support_bls12-381/src/bls12_381/mod.rs
+
 use crate::arithmetic::mul_512;
 use crate::arithmetic::sbb;
 use crate::{
