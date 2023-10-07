@@ -17,6 +17,7 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 use super::fp::Fp;
 use super::Scalar;
+use super::hash_to_curve::{HashToCurve, ExpandMsgXmd};
 use crate::CurveAffineExt;
 use crate::{
     impl_add_binop_specify_output, impl_binops_additive, impl_binops_additive_specify_output,
@@ -706,9 +707,13 @@ impl CurveExt for G1Projective {
         (x, y, self.z)
     }
 
-    fn hash_to_curve<'a>(_domain_prefix: &'a str) -> Box<dyn Fn(&[u8]) -> Self + 'a> {
-        // XXX: TODO
-        unimplemented!()
+    fn hash_to_curve<'a>(domain_prefix: &'a str) -> Box<dyn Fn(&[u8]) -> Self + 'a> {
+        Box::new(|msg| {
+            <G1Projective as HashToCurve<ExpandMsgXmd<sha2::Sha256>>>::hash_to_curve(
+                msg,
+                domain_prefix.as_bytes(),
+            )
+        })
     }
 
     fn is_on_curve(&self) -> Choice {

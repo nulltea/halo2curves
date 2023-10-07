@@ -1,5 +1,5 @@
 //! This module provides an implementation of the $\mathbb{G}_2$ group of BLS12-381.
-//! 
+//!
 //! Source: https://github.com/privacy-scaling-explorations/bls12_381
 
 use core::borrow::Borrow;
@@ -23,6 +23,7 @@ use crate::{
 
 use super::fp::Fp;
 use super::fp2::Fp2;
+use super::hash_to_curve::{ExpandMsgXmd, HashToCurve};
 use super::Scalar;
 
 #[cfg(feature = "alloc")]
@@ -1301,9 +1302,13 @@ impl CurveExt for G2Projective {
         (x, y, self.z)
     }
 
-    fn hash_to_curve<'a>(_domain_prefix: &'a str) -> Box<dyn Fn(&[u8]) -> Self + 'a> {
-        // XXX: TODO
-        unimplemented!()
+    fn hash_to_curve<'a>(domain_prefix: &'a str) -> Box<dyn Fn(&[u8]) -> Self + 'a> {
+        Box::new(|msg| {
+            <G2Projective as HashToCurve<ExpandMsgXmd<sha2::Sha256>>>::hash_to_curve(
+                msg,
+                domain_prefix.as_bytes(),
+            )
+        })
     }
 
     fn is_on_curve(&self) -> Choice {
