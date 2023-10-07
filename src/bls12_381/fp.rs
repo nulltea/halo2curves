@@ -28,7 +28,7 @@ impl fmt::Debug for Fp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let tmp = self.to_bytes();
         write!(f, "0x")?;
-        for &b in tmp.iter() {
+        for &b in tmp.iter().rev() {
             write!(f, "{b:02x}")?;
         }
         Ok(())
@@ -419,10 +419,6 @@ impl Fp {
         tmp.0[3] = u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[24..32]).unwrap());
         tmp.0[4] = u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[32..40]).unwrap());
         tmp.0[5] = u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[40..48]).unwrap());
-
-        // pub(crate) const fn sbb(a: u64, b: u64, borrow: bool) -> (u64, bool) {
-        //     a.borrowing_sub(b, borrow)
-        // }
 
         // Try to subtract the modulus
         let (_, borrow) = sbb(tmp.0[0], MODULUS[0], 0);
