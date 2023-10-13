@@ -11,7 +11,7 @@ use core::fmt;
 use core::iter::Sum;
 use core::ops::{Add, AddAssign, Mul, Neg, Sub};
 use group::Group;
-use pairing::{Engine, PairingCurveAffine, MultiMillerLoop};
+use pairing::{Engine, MultiMillerLoop, PairingCurveAffine};
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 

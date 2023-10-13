@@ -1,5 +1,5 @@
 //! This module implements arithmetic over the quadratic extension field Fp2.
-//! 
+//!
 //! Source: https://github.com/privacy-scaling-explorations/bls12_381
 
 #![allow(clippy::needless_borrow)]
