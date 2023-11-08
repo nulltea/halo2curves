@@ -1053,6 +1053,14 @@ impl PartialEq for G1Compressed {
     }
 }
 
+impl TryFrom<&[u8]> for G1Compressed {
+    type Error = std::array::TryFromSliceError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Ok(G1Compressed(value.try_into()?))
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct G1Uncompressed([u8; 96]);
 
@@ -1094,6 +1102,14 @@ impl PartialEq for G1Uncompressed {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         bool::from(self.ct_eq(other))
+    }
+}
+
+impl TryFrom<&[u8]> for G1Uncompressed {
+    type Error = std::array::TryFromSliceError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Ok(G1Uncompressed(value.try_into()?))
     }
 }
 
