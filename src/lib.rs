@@ -1,5 +1,6 @@
 mod arithmetic;
-mod bernsteinyang;
+mod ff_inverse;
+mod ff_jacobi;
 pub mod fft;
 pub mod hash_to_curve;
 pub mod msm;
@@ -17,18 +18,13 @@ pub mod secq256k1;
 
 #[macro_use]
 mod derive;
-pub use arithmetic::CurveAffineExt;
-pub use pasta_curves::arithmetic::{Coordinates, CurveAffine, CurveExt};
 
-// Re-export ff and group to simplify down stream dependencies
-#[cfg(feature = "reexport")]
+// Re-export to simplify down stream dependencies
+pub use arithmetic::CurveAffineExt;
 pub use ff;
-#[cfg(not(feature = "reexport"))]
-use ff;
-#[cfg(feature = "reexport")]
 pub use group;
-#[cfg(not(feature = "reexport"))]
-use group;
+pub use pairing;
+pub use pasta_curves::arithmetic::{Coordinates, CurveAffine, CurveExt};
 
 #[cfg(test)]
 pub mod tests;
