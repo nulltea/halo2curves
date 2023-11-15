@@ -15,8 +15,8 @@ extern crate criterion;
 
 use criterion::{BenchmarkId, Criterion};
 use group::ff::Field;
-use halo2curves::bn256::Fr as Scalar;
-use halo2curves::fft::best_fft;
+use halo2curves_axiom::bn256::Fr as Scalar;
+use halo2curves_axiom::fft::best_fft;
 use rand_core::OsRng;
 use std::ops::Range;
 use std::time::SystemTime;

@@ -14,13 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        package: [halo2curves]
+        package: [halo2curves-axiom]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
-            profile: minimal
+          profile: minimal
 
       - name: Get current version
         id: get-version
@@ -42,7 +42,7 @@ jobs:
               exit 1
             fi
           done
-          
+
           echo "Input version is equal to current version. Failing..."
           exit 1
 
@@ -50,10 +50,10 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-release
-          
+
       - uses: cargo-bins/release-pr@v2
         with:
-            pr-template-file: .github/release-pr-template.ejs
-            github-token: ${{ secrets.GITHUB_TOKEN }}
-            version: ${{ inputs.version }}
-            crate-release-all: true
+          pr-template-file: .github/release-pr-template.ejs
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ inputs.version }}
+          crate-release-all: true

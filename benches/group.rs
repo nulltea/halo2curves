@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use ff::Field;
 use group::prime::PrimeCurveAffine;
-use halo2curves::secp256k1::Secp256k1;
+use halo2curves_axiom::secp256k1::Secp256k1;
 use pasta_curves::arithmetic::CurveExt;
 use rand_core::OsRng;
 

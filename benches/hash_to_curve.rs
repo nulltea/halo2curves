@@ -1,7 +1,9 @@
+use std::iter;
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use halo2curves_axiom as halo2curves;
 use pasta_curves::arithmetic::CurveExt;
 use rand_core::{OsRng, RngCore};
-use std::iter;
 
 fn hash_to_secp256k1(c: &mut Criterion) {
     hash_to_curve::<halo2curves::secp256k1::Secp256k1>(c, "Secp256k1");
