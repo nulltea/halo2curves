@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
-use halo2curves::{bn256::*, ff::Field, legendre::Legendre};
+use halo2curves_axiom::{bn256::*, ff::Field, legendre::Legendre};
 use rand::SeedableRng;
 use rand_xorshift::XorShiftRng;
 
