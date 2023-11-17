@@ -305,6 +305,7 @@ macro_rules! new_curve_impl {
                 }
 
                 paste::paste! {
+                    #[allow(unused_imports)]
                     use ::serde::de::Error as _;
                     impl<'de> ::serde::Deserialize<'de> for $name {
                         fn deserialize<D: ::serde::Deserializer<'de>>(
@@ -334,6 +335,7 @@ macro_rules! new_curve_impl {
                 }
 
                 paste::paste! {
+                    #[allow(unused_imports)]
                     use ::serde::de::Error as _;
                     impl<'de> ::serde::Deserialize<'de> for $name_affine {
                         fn deserialize<D: ::serde::Deserializer<'de>>(
@@ -393,7 +395,7 @@ macro_rules! new_curve_impl {
             }
 
             fn mul_by_3b(input: &$base) -> $base {
-                if $name::CURVE_ID == "bn256"{
+                if $name::CURVE_ID == "bn256_g1"{
                     input.double().double().double() + input
                 } else {
                     input * $name::curve_constant_3b()
