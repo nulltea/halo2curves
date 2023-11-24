@@ -40,7 +40,7 @@ fn check_underflow(x: &[u64; 4], y: &[u64; 4]) -> bool {
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use group::Group;
-use halo2curves::bn256::G1;
+use halo2curves_axiom::bn256::G1;
 use rand::SeedableRng;
 use rand_xorshift::XorShiftRng;
 

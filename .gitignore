@@ -6,5 +6,4 @@ Cargo.lock
 .DS_Store
 
 # script generated source code
-src/bn256/fr/table.rs
-
+# src/bn256/fr/table.rs

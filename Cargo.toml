@@ -1,13 +1,13 @@
 [package]
-name = "halo2curves"
-version = "0.4.0"
-authors = ["Privacy Scaling Explorations team"]
+name = "halo2curves-axiom"
+version = "0.4.2"
+authors = ["Privacy Scaling Explorations team", "Taiko Labs", "Intrinsic Technologies"]
 license = "MIT/Apache-2.0"
 edition = "2021"
-repository = "https://github.com/privacy-scaling-explorations/halo2curves"
+repository = "https://github.com/axiom-crypto/halo2curves"
 readme = "README.md"
-description = "Elliptic curve implementations and wrappers for halo2 library"
-rust-version = "1.63.0"
+description = "Elliptic curve implementations and wrappers for halo2 library. This is a fork of the \"halo2curves\" crate for Axiom's production usage."
+rust-version = "1.67.0"
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["html_reports"] }
@@ -37,7 +37,7 @@ maybe-rayon = { version = "0.1.0", default-features = false }
 
 
 [features]
-default = ["reexport", "bits", "multicore", "bn256-table", "derive_serde"]
+default = ["bits", "multicore", "bn256-table", "derive_serde"]
 multicore = ["maybe-rayon/threads"]
 asm = []
 bits = ["ff/bits"]
@@ -45,7 +45,6 @@ bn256-table = []
 derive_serde = ["serde/derive", "serde_arrays", "hex"]
 prefetch = []
 print-trace = ["ark-std/print-trace"]
-reexport = []
 
 [profile.bench]
 opt-level = 3
@@ -63,7 +62,6 @@ harness = false
 [[bench]]
 name = "bn256_field"
 harness = false
-required-features = ["reexport"]
 
 [[bench]]
 name = "group"
