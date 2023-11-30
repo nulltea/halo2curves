@@ -58,5 +58,8 @@ pub use pairings::{pairing, Bls12, Gt, MillerLoopResult};
 
 mod endo;
 
+pub(crate) use digest::generic_array;
+pub mod hash_to_curve;
+
 #[cfg(test)]
 mod tests;
