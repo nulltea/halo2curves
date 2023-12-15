@@ -5,6 +5,8 @@
 //! Supporting evidence: https://github.com/daira/pluto-eris
 //! Field constant derivation: https://github.com/davidnevadoc/ec-constants/tree/main/pluto_eris
 //! Pairing constants derivation: https://github.com/John-Gong-Math/pluto_eris/blob/main/pluto_pairing.ipynb
+
+// temporarily allow clippy::all to avoid warnings in this module:
 #[allow(clippy::all)]
 mod curve;
 mod engine;
