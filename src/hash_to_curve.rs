@@ -5,7 +5,7 @@ use pasta_curves::arithmetic::CurveExt;
 use static_assertions::const_assert;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
-use crate::legendre::Legendre;
+use crate::ff_ext::Legendre;
 
 /// Hashes over a message and writes the output to all of `buf`.
 /// Modified from https://github.com/zcash/pasta_curves/blob/7e3fc6a4919f6462a32b79dd226cb2587b7961eb/src/hashtocurve.rs#L11.
@@ -265,7 +265,7 @@ where
 }
 
 // Implement https://datatracker.ietf.org/doc/html/rfc9380#name-sqrt_ratio-for-any-field
-// Copied from ff sqrt_ratio_generic subsituting F::ROOT_OF_UNITY for input Z
+// Copied from ff sqrt_ratio_generic substituting F::ROOT_OF_UNITY for input Z
 fn sqrt_ratio<F: PrimeField>(num: &F, div: &F, z: &F) -> (Choice, F) {
     // General implementation:
     //

@@ -1,18 +1,16 @@
 mod arithmetic;
-mod ff_inverse;
-mod ff_jacobi;
+pub mod ff_ext;
 pub mod fft;
 pub mod hash_to_curve;
 pub mod msm;
 pub mod multicore;
-#[macro_use]
-pub mod legendre;
 pub mod serde;
 
 pub mod bls12_381;
 pub mod bn256;
 pub mod grumpkin;
 pub mod pasta;
+pub mod pluto_eris;
 pub mod secp256k1;
 pub mod secp256r1;
 pub mod secq256k1;
