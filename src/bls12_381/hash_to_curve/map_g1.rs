@@ -779,7 +779,6 @@ fn test_encode_to_curve_10() {
         g1::G1Affine,
         hash_to_curve::{ExpandMsgXmd, HashToCurve},
     };
-    use group::UncompressedEncoding;
     use std::string::{String, ToString};
 
     struct TestCase {
@@ -848,7 +847,7 @@ fn test_encode_to_curve_10() {
             case.msg, DOMAIN,
         );
         let aff = G1Affine::from(g);
-        let g_uncompressed = aff.to_uncompressed();
+        let g_uncompressed = aff.to_uncompressed_be();
 
         assert_eq!(case.expected(), hex::encode(g_uncompressed.as_ref()));
     }
@@ -861,7 +860,6 @@ fn test_hash_to_curve_10() {
         g1::G1Affine,
         hash_to_curve::{ExpandMsgXmd, HashToCurve},
     };
-    use group::UncompressedEncoding;
     use std::string::{String, ToString};
 
     struct TestCase {
@@ -929,7 +927,7 @@ fn test_hash_to_curve_10() {
         let g = <G1Projective as HashToCurve<ExpandMsgXmd<sha2::Sha256>>>::hash_to_curve(
             case.msg, DOMAIN,
         );
-        let g_uncompressed = G1Affine::from(g).to_uncompressed();
+        let g_uncompressed = G1Affine::from(g).to_uncompressed_be();
 
         assert_eq!(case.expected(), hex::encode(g_uncompressed.as_ref()));
     }

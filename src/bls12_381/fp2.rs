@@ -387,7 +387,7 @@ impl Fp2 {
     }
 
     /// Attempts to convert a little-endian byte representation of
-    /// a scalar into a `Fp`, failing if the input is not canonical.
+    /// a scalar into a `Fp2`, failing if the input is not canonical.
     pub fn from_bytes(bytes: &[u8; 96]) -> CtOption<Fp2> {
         let c0 = Fp::from_bytes(bytes[0..48].try_into().unwrap());
         let c1 = Fp::from_bytes(bytes[48..96].try_into().unwrap());
@@ -668,9 +668,7 @@ impl ff::PrimeField for Fp2 {
     }
 
     fn to_repr(&self) -> Self::Repr {
-        let mut le_bytes = self.to_bytes();
-        le_bytes.reverse();
-        Fp2Bytes { slice: le_bytes }
+        Fp2Bytes { slice: self.to_bytes() }
     }
 
     fn is_odd(&self) -> Choice {

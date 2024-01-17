@@ -16,8 +16,8 @@ use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 use super::fp::Fp;
+use super::hash_to_curve::{ExpandMsgXmd, HashToCurve};
 use super::Scalar;
-use super::hash_to_curve::{HashToCurve, ExpandMsgXmd};
 use crate::CurveAffineExt;
 use crate::{
     impl_add_binop_specify_output, impl_binops_additive, impl_binops_additive_specify_output,
@@ -262,8 +262,6 @@ impl G1Affine {
 
     /// Serializes this element into compressed form. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
-    ///
-    /// NOTE: this function used in [`CompressedEncoding::to_uncompressed`].
     pub fn to_compressed_be(&self) -> [u8; 48] {
         // Strictly speaking, self.x is zero already when self.infinity is true, but
         // to guard against implementation mistakes we do not assume this.
@@ -287,6 +285,13 @@ impl G1Affine {
         res
     }
 
+    /// Serializes this element into compressed form in little-endian.
+    pub fn to_compressed_le(&self) -> [u8; 48] {
+        let mut bytes = self.to_compressed_be();
+        bytes.reverse();
+        bytes
+    }
+
     /// Serializes this element into uncompressed form. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
     ///
@@ -307,10 +312,25 @@ impl G1Affine {
         res
     }
 
+    /// Serializes this element into uncompressed form in little-endian.
+    pub fn to_uncompressed_le(&self) -> [u8; 96] {
+        let mut res = [0; 96];
+
+        res[0..48].copy_from_slice(
+            &Fp::conditional_select(&self.x, &Fp::zero(), self.infinity).to_bytes()[..],
+        );
+        res[48..96].copy_from_slice(
+            &Fp::conditional_select(&self.y, &Fp::zero(), self.infinity).to_bytes()[..],
+        );
+
+        // Is this point at infinity? If so, set the second-most significant bit.
+        res[47] |= u8::conditional_select(&0u8, &(1u8 << 6), self.infinity);
+
+        res
+    }
+
     /// Attempts to deserialize an uncompressed element. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
-    ///
-    /// NOTE: this function used in [`UncompressedEncoding::from_uncompressed`].
     pub fn from_uncompressed_be(bytes: &[u8; 96]) -> CtOption<Self> {
         Self::from_uncompressed_unchecked_be(bytes)
             .and_then(|p| CtOption::new(p, p.is_on_curve() & p.is_torsion_free()))
@@ -371,7 +391,7 @@ impl G1Affine {
         })
     }
 
-    /// Attempts to deserialize a compressed element. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
+    /// Attempts to deserialize a compressed element from big-endian bytes. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
     ///
     /// NOTE: this function used in [`CompressedEncoding::from_compressed`].
@@ -383,7 +403,7 @@ impl G1Affine {
             .and_then(|p| CtOption::new(p, p.is_torsion_free()))
     }
 
-    /// Attempts to deserialize an uncompressed element, not checking if the
+    /// Attempts to deserialize an uncompressed element from big-endian bytes, not checking if the
     /// element is in the correct subgroup.
     /// **This is dangerous to call unless you trust the bytes you are reading; otherwise,
     /// API invariants may be broken.** Please consider using `from_compressed()` instead.
@@ -440,6 +460,75 @@ impl G1Affine {
                 })
             })
         })
+    }
+
+    /// Attempts to deserialize an uncompressed element. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
+    /// for details about how group elements are serialized.
+    pub fn from_uncompressed_le(bytes: &[u8; 96]) -> CtOption<Self> {
+        Self::from_uncompressed_unchecked_le(bytes)
+            .and_then(|p| CtOption::new(p, p.is_on_curve() & p.is_torsion_free()))
+    }
+
+    /// Attempts to deserialize an uncompressed element, not checking if the
+    /// element is on the curve and not checking if it is in the correct subgroup.
+    /// **This is dangerous to call unless you trust the bytes you are reading; otherwise,
+    /// API invariants may be broken.** Please consider using `from_uncompressed()` instead.
+    pub fn from_uncompressed_unchecked_le(bytes: &[u8; 96]) -> CtOption<Self> {
+        // Obtain the three flags from the start of the byte sequence
+        let infinity_flag_set = Choice::from((bytes[47] >> 6) & 1);
+
+        // Attempt to obtain the x-coordinate
+        let x = {
+            let mut tmp = [0; 48];
+            tmp.copy_from_slice(&bytes[0..48]);
+
+            Fp::from_bytes(&tmp)
+        };
+
+        // Attempt to obtain the y-coordinate
+        let y = {
+            let mut tmp = [0; 48];
+            tmp.copy_from_slice(&bytes[48..96]);
+
+            Fp::from_bytes(&tmp)
+        };
+
+        x.and_then(|x| {
+            y.and_then(|y| {
+                // Create a point representing this value
+                let p = G1Affine::conditional_select(
+                    &G1Affine {
+                        x,
+                        y,
+                        infinity: infinity_flag_set,
+                    },
+                    &G1Affine::identity(),
+                    infinity_flag_set,
+                );
+
+                CtOption::new(
+                    p,
+                    // If the infinity flag is set, the x and y coordinates should have been zero.
+                    (!infinity_flag_set) | (x.is_zero() & y.is_zero()),
+                )
+            })
+        })
+    }
+
+    /// Attempts to deserialize an uncompressed element from little-endian bytes, not checking if the
+    /// element is in the correct subgroup.
+    pub fn from_compressed_unchecked_le(bytes: &[u8; 48]) -> CtOption<Self> {
+        let mut bytes = *bytes;
+        bytes.reverse();
+        Self::from_compressed_unchecked_be(&bytes)
+    }
+
+    /// Attempts to deserialize a compressed element from little-endian bytes.
+    pub fn from_compressed_le(bytes: &[u8; 48]) -> CtOption<Self> {
+        // We already know the point is on the curve because this is established
+        // by the y-coordinate recovery procedure in from_compressed_unchecked().
+
+        Self::from_compressed_unchecked_le(bytes).and_then(|p| CtOption::new(p, p.is_torsion_free()))
     }
 
     /// Returns true if this element is the identity (the point at infinity).
@@ -1220,34 +1309,32 @@ impl GroupEncoding for G1Affine {
     type Repr = G1Compressed;
 
     fn from_bytes(bytes: &Self::Repr) -> CtOption<Self> {
-        Self::from_compressed_be(&bytes.0)
+        Self::from_compressed_le(&bytes.0)
     }
 
     fn from_bytes_unchecked(bytes: &Self::Repr) -> CtOption<Self> {
-        Self::from_compressed_unchecked_be(&bytes.0)
+        Self::from_compressed_unchecked_le(&bytes.0)
     }
 
     fn to_bytes(&self) -> Self::Repr {
-        G1Compressed(self.to_compressed_be())
+        G1Compressed(self.to_compressed_le())
     }
 }
 
-/// Allows to de/encode G1 points from uncompressed bytes.
-/// NOTE: This implements uses **big endian** encoding.
-/// BE is a more common encoding for BLS12-381 (e.g. Validator pubkeys in Ethereum are in BE).
+/// Allows to de/encode G1 points from uncompressed bytes in **little endian**.
 impl UncompressedEncoding for G1Affine {
     type Uncompressed = G1Uncompressed;
 
     fn from_uncompressed(bytes: &Self::Uncompressed) -> CtOption<Self> {
-        Self::from_uncompressed_be(&bytes.0)
+        Self::from_uncompressed_le(&bytes.0)
     }
 
     fn from_uncompressed_unchecked(bytes: &Self::Uncompressed) -> CtOption<Self> {
-        Self::from_uncompressed_unchecked_be(&bytes.0)
+        Self::from_uncompressed_unchecked_le(&bytes.0)
     }
 
     fn to_uncompressed(&self) -> Self::Uncompressed {
-        G1Uncompressed(self.to_uncompressed_be())
+        G1Uncompressed(self.to_uncompressed_le())
     }
 }
 

@@ -297,8 +297,8 @@ impl G2Affine {
         }
     }
 
-    /// Serializes this element into compressed form. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
-    /// for details about how group elements are serialized.
+    /// Serializes this element into compressed form in big-endian.
+    /// See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html) for details about how group elements are serialized.
     pub fn to_compressed_be(&self) -> [u8; 96] {
         // Strictly speaking, self.x is zero already when self.infinity is true, but
         // to guard against implementation mistakes we do not assume this.
@@ -327,6 +327,13 @@ impl G2Affine {
         res
     }
 
+    /// Serializes this element into compressed form in little-endian.
+    pub fn to_compressed_le(&self) -> [u8; 96] {
+        let mut bytes = self.to_compressed_be();
+        bytes.reverse();
+        bytes
+    }
+
     /// Serializes this element into uncompressed form. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
     /// for details about how group elements are serialized.
     pub fn to_uncompressed_be(&self) -> [u8; 192] {
@@ -339,6 +346,24 @@ impl G2Affine {
         res[48..96].copy_from_slice(&x.c0.to_bytes_be()[..]);
         res[96..144].copy_from_slice(&y.c1.to_bytes_be()[..]);
         res[144..192].copy_from_slice(&y.c0.to_bytes_be()[..]);
+
+        // Is this point at infinity? If so, set the second-most significant bit.
+        res[0] |= u8::conditional_select(&0u8, &(1u8 << 6), self.infinity);
+
+        res
+    }
+
+    /// Serializes this element into uncompressed form in little-endian.
+    pub fn to_uncompressed_le(&self) -> [u8; 192] {
+        let mut res = [0; 192];
+
+        let x = Fp2::conditional_select(&self.x, &Fp2::zero(), self.infinity);
+        let y = Fp2::conditional_select(&self.y, &Fp2::zero(), self.infinity);
+
+        res[0..48].copy_from_slice(&x.c1.to_bytes()[..]);
+        res[48..96].copy_from_slice(&x.c0.to_bytes()[..]);
+        res[96..144].copy_from_slice(&y.c1.to_bytes()[..]);
+        res[144..192].copy_from_slice(&y.c0.to_bytes()[..]);
 
         // Is this point at infinity? If so, set the second-most significant bit.
         res[0] |= u8::conditional_select(&0u8, &(1u8 << 6), self.infinity);
@@ -511,6 +536,95 @@ impl G2Affine {
             })
         })
     }
+
+    /// Attempts to deserialize an uncompressed element. See [`notes::serialization`](https://docs.rs/bls12_381/0.8.0/bls12_381/notes/serialization/index.html)
+    /// for details about how group elements are serialized.
+    pub fn from_uncompressed_le(bytes: &[u8; 192]) -> CtOption<Self> {
+        Self::from_uncompressed_unchecked_le(bytes)
+            .and_then(|p| CtOption::new(p, p.is_on_curve() & p.is_torsion_free()))
+    }
+
+    /// Attempts to deserialize an uncompressed element, not checking if the
+    /// element is on the curve and not checking if it is in the correct subgroup.
+    /// **This is dangerous to call unless you trust the bytes you are reading; otherwise,
+    /// API invariants may be broken.** Please consider using `from_uncompressed()` instead.
+    pub fn from_uncompressed_unchecked_le(bytes: &[u8; 192]) -> CtOption<Self> {
+        // Obtain the three flags from the start of the byte sequence
+        let infinity_flag_set = Choice::from((bytes[0] >> 6) & 1);
+
+        // Attempt to obtain the x-coordinate
+        let xc1 = {
+            let mut tmp = [0; 48];
+            tmp.copy_from_slice(&bytes[0..48]);
+
+            Fp::from_bytes(&tmp)
+        };
+        let xc0 = {
+            let mut tmp = [0; 48];
+            tmp.copy_from_slice(&bytes[48..96]);
+
+            Fp::from_bytes(&tmp)
+        };
+
+        // Attempt to obtain the y-coordinate
+        let yc1 = {
+            let mut tmp = [0; 48];
+            tmp.copy_from_slice(&bytes[96..144]);
+
+            Fp::from_bytes(&tmp)
+        };
+        let yc0 = {
+            let mut tmp = [0; 48];
+            tmp.copy_from_slice(&bytes[144..192]);
+
+            Fp::from_bytes(&tmp)
+        };
+
+        xc1.and_then(|xc1| {
+            xc0.and_then(|xc0| {
+                yc1.and_then(|yc1| {
+                    yc0.and_then(|yc0| {
+                        let x = Fp2 { c0: xc0, c1: xc1 };
+                        let y = Fp2 { c0: yc0, c1: yc1 };
+
+                        // Create a point representing this value
+                        let p = G2Affine::conditional_select(
+                            &G2Affine {
+                                x,
+                                y,
+                                infinity: infinity_flag_set,
+                            },
+                            &G2Affine::identity(),
+                            infinity_flag_set,
+                        );
+
+                        CtOption::new(
+                            p,
+                            // If the infinity flag is set, the x and y coordinates should have been zero.
+                            (!infinity_flag_set) | (x.is_zero() & y.is_zero()),
+                        )
+                    })
+                })
+            })
+        })
+    }
+
+    /// Attempts to deserialize an uncompressed element from little-endian bytes, not checking if the
+    /// element is in the correct subgroup.
+    pub fn from_compressed_unchecked_le(bytes: &[u8; 96]) -> CtOption<Self> {
+        let mut bytes = *bytes;
+        bytes.reverse();
+        Self::from_compressed_unchecked_be(&bytes)
+    }
+
+    /// Attempts to deserialize a compressed element from little-endian bytes.
+    pub fn from_compressed_le(bytes: &[u8; 96]) -> CtOption<Self> {
+        // We already know the point is on the curve because this is established
+        // by the y-coordinate recovery procedure in from_compressed_unchecked().
+
+        Self::from_compressed_unchecked_le(bytes).and_then(|p| CtOption::new(p, p.is_torsion_free()))
+    }
+
 
     /// Returns true if this element is the identity (the point at infinity).
     #[inline]
@@ -1272,15 +1386,15 @@ impl GroupEncoding for G2Affine {
     type Repr = G2Compressed;
 
     fn from_bytes(bytes: &Self::Repr) -> CtOption<Self> {
-        Self::from_compressed_be(&bytes.0)
+        Self::from_compressed_le(&bytes.0)
     }
 
     fn from_bytes_unchecked(bytes: &Self::Repr) -> CtOption<Self> {
-        Self::from_compressed_unchecked_be(&bytes.0)
+        Self::from_compressed_unchecked_le(&bytes.0)
     }
 
     fn to_bytes(&self) -> Self::Repr {
-        G2Compressed(self.to_compressed_be())
+        G2Compressed(self.to_compressed_le())
     }
 }
 
@@ -1288,15 +1402,15 @@ impl UncompressedEncoding for G2Affine {
     type Uncompressed = G2Uncompressed;
 
     fn from_uncompressed(bytes: &Self::Uncompressed) -> CtOption<Self> {
-        Self::from_uncompressed_be(&bytes.0)
+        Self::from_uncompressed_le(&bytes.0)
     }
 
     fn from_uncompressed_unchecked(bytes: &Self::Uncompressed) -> CtOption<Self> {
-        Self::from_uncompressed_unchecked_be(&bytes.0)
+        Self::from_uncompressed_unchecked_le(&bytes.0)
     }
 
     fn to_uncompressed(&self) -> Self::Uncompressed {
-        G2Uncompressed(self.to_uncompressed_be())
+        G2Uncompressed(self.to_uncompressed_le())
     }
 }
 
