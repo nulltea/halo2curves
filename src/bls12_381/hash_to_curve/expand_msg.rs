@@ -58,7 +58,12 @@ impl<'x, L: ArrayLength<u8>> ExpandMsgDst<'x, L> {
         H: Digest<OutputSize = L>,
     {
         if dst.len() > 255 {
-            Self::Hashed(H::new().chain_update(OVERSIZE_DST_SALT).chain_update(dst).finalize())
+            Self::Hashed(
+                H::new()
+                    .chain_update(OVERSIZE_DST_SALT)
+                    .chain_update(dst)
+                    .finalize(),
+            )
         } else {
             Self::Raw(dst)
         }
