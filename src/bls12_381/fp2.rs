@@ -372,7 +372,7 @@ impl Fp2 {
 
     /// Vartime exponentiation for larger exponents, only
     /// used in testing and not exposed through the public API.
-    pub(crate) fn pow_vartime_extended(&self, by: &[u64]) -> Self {
+    pub fn pow_vartime_extended(&self, by: &[u64]) -> Self {
         let mut res = Self::one();
         for e in by.iter().rev() {
             for i in (0..64).rev() {
@@ -621,6 +621,7 @@ impl AsRef<[u8]> for Fp2Bytes {
     }
 }
 
+// While Fp2 is not a prime field we must implement as consequence of `CurveExt::Base` requiring `WithSmallOrderMulGroup`.
 impl ff::PrimeField for Fp2 {
     type Repr = Fp2Bytes;
 
@@ -648,15 +649,36 @@ impl ff::PrimeField for Fp2 {
         ]),
     };
     const ROOT_OF_UNITY_INV: Self = Fp2 {
-        c0: Fp::zero(),
-        c1: Fp::zero(),
+        c0: Fp::from_raw_unchecked([
+            0x3e2f_585d_a55c_9ad1,
+            0x4294_213d_86c1_8183,
+            0x3828_44c8_8b62_3732,
+            0x92ad_2afd_1910_3e18,
+            0x1d79_4e4f_ac7c_f0b9,
+            0x0bd5_92fc_7d82_5ec8,
+        ]),
+        c1: Fp::from_raw_unchecked([
+            0x7bcf_a7a2_5aa3_0fda,
+            0xdc17_dec1_2a92_7e7c,
+            0x2f08_8dd8_6b4e_bef1,
+            0xd1ca_2087_da74_d4a7,
+            0x2da2_5966_96ce_bc1d,
+            0x0e2b_7eed_bbfd_87d2,
+        ]),
     };
     const DELTA: Self = Fp2 {
         c0: Fp::zero(),
         c1: Fp::zero(),
     };
     const TWO_INV: Fp2 = Fp2 {
-        c0: Fp::zero(),
+        c0: Fp::from_raw_unchecked([
+            0x1804_0000_0001_5554,
+            0x8550_0005_3ab0_0001,
+            0x633c_b57c_253c_276f,
+            0x6e22_d1ec_31eb_b502,
+            0xd391_6126_f2d1_4ca2,
+            0x17fb_b857_1a00_6596,
+        ]),
         c1: Fp::zero(),
     };
     const S: u32 = 0;
@@ -668,7 +690,9 @@ impl ff::PrimeField for Fp2 {
     }
 
     fn to_repr(&self) -> Self::Repr {
-        Fp2Bytes { slice: self.to_bytes() }
+        Fp2Bytes {
+            slice: self.to_bytes(),
+        }
     }
 
     fn is_odd(&self) -> Choice {
@@ -685,9 +709,19 @@ impl From<u64> for Fp2 {
     }
 }
 
+// The only reason we implement this trait for Fp2 is so it can be used as base field of `CurveExt`` trait for `G2Affine`.
+// See: https://github.com/zcash/pasta_curves/blob/main/src/arithmetic/curves.rs#L32
 impl WithSmallOrderMulGroup<3> for Fp2 {
+    // Fq::ZETA ^2
     const ZETA: Self = Fp2 {
-        c0: Fp::zero(),
+        c0: Fp::from_raw_unchecked([
+            0x30f1_361b_798a_64e8,
+            0xf3b8_ddab_7ece_5a2a,
+            0x16a8_ca3a_c615_77f7,
+            0xc26a_2ff8_74fd_029b,
+            0x3636_b766_6070_1c6e,
+            0x051b_a4ab_241b_6160,
+        ]),
         c1: Fp::zero(),
     };
 }
@@ -1233,4 +1267,11 @@ fn test_zeroize() {
     let mut a = Fp2::one();
     a.zeroize();
     assert!(bool::from(a.is_zero()));
+}
+
+#[test]
+fn test_root_of_unity_inv() {
+    let two_inv = Fp::ZETA.square();
+    println!("two_inv = {:x?}", two_inv.0);
+    assert_eq!(Fp2::ROOT_OF_UNITY * Fp2::ROOT_OF_UNITY_INV, Fp2::ONE)
 }
