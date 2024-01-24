@@ -1,5 +1,5 @@
 //! Implementation of hash-to-curve for the G1 group.
-//! 
+//!
 //! Source: https://github.com/privacy-scaling-explorations/bls12_381
 
 use subtle::{Choice, ConditionallyNegatable, ConditionallySelectable, ConstantTimeEq};

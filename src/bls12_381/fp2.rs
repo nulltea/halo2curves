@@ -1,5 +1,4 @@
 //! This module implements arithmetic over the quadratic extension field Fp2.
-//!
 //! Source: https://github.com/privacy-scaling-explorations/bls12_381
 
 #![allow(clippy::needless_borrow)]
@@ -1271,7 +1270,6 @@ fn test_zeroize() {
 
 #[test]
 fn test_root_of_unity_inv() {
-    let two_inv = Fp::ZETA.square();
-    println!("two_inv = {:x?}", two_inv.0);
+    use ff::PrimeField;
     assert_eq!(Fp2::ROOT_OF_UNITY * Fp2::ROOT_OF_UNITY_INV, Fp2::ONE)
 }

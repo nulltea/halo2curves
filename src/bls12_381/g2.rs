@@ -1,5 +1,4 @@
 //! This module provides an implementation of the $\mathbb{G}_2$ group of BLS12-381.
-//!
 //! Source: https://github.com/privacy-scaling-explorations/bls12_381
 
 use core::borrow::Borrow;
@@ -622,9 +621,9 @@ impl G2Affine {
         // We already know the point is on the curve because this is established
         // by the y-coordinate recovery procedure in from_compressed_unchecked().
 
-        Self::from_compressed_unchecked_le(bytes).and_then(|p| CtOption::new(p, p.is_torsion_free()))
+        Self::from_compressed_unchecked_le(bytes)
+            .and_then(|p| CtOption::new(p, p.is_torsion_free()))
     }
-
 
     /// Returns true if this element is the identity (the point at infinity).
     #[inline]
